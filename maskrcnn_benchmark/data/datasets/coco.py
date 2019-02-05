@@ -1,15 +1,28 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+import os
+
 import torch
 import torchvision
 
+import maskrcnn_benchmark
 from maskrcnn_benchmark.structures.bounding_box import BoxList
 from maskrcnn_benchmark.structures.segmentation_mask import SegmentationMask
 
+FITZ_MAP = {
+    "Category A": 0,
+    "Category B": 1,
+    "Not a person": 2,
+    "A person, cannot determine skin type": 3
+}
 
 class COCODataset(torchvision.datasets.coco.CocoDetection):
     def __init__(
         self, ann_file, root, remove_images_without_annotations, transforms=None
     ):
+        root = os.path.join(maskrcnn_benchmark.__file__.replace(
+            "maskrcnn_benchmark/__init__.py", ""), root)
+        ann_file = os.path.join(maskrcnn_benchmark.__file__.replace(
+            "maskrcnn_benchmark/__init__.py", ""), ann_file)
         super(COCODataset, self).__init__(root, ann_file)
         # sort indices for reproducible results
         self.ids = sorted(self.ids)
@@ -65,6 +78,10 @@ class COCODataset(torchvision.datasets.coco.CocoDetection):
         masks = [obj["segmentation"] for obj in anno]
         masks = SegmentationMask(masks, img.size)
         target.add_field("masks", masks)
+
+        fitz_cats = [FITZ_MAP[obj["fitz_category"]] for obj in anno]
+        fitz_cats = torch.LongTensor(fitz_cats)
+        target.add_field("fitz_categories", fitz_cats)
 
         target = target.clip_to_image(remove_empty=True)
 

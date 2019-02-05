@@ -87,6 +87,16 @@ class DatasetCatalog(object):
         "cityscapes_fine_instanceonly_seg_test_cocostyle": {
             "img_dir": "cityscapes/images",
             "ann_file": "cityscapes/annotations/instancesonly_filtered_gtFine_test.json"
+        },
+        "bdd100k_train_cocostyle": {
+            "img_dir": "bdd100k/images/100k/train",
+            "ann_file": "bdd100k/annotations/bdd100k_train.json",
+            "split": "train"
+        },
+        "bdd100k_val_cocostyle": {
+            "img_dir": "bdd100k/images/100k/val",
+            "ann_file": "bdd100k/annotations/bdd100k_val.json",
+            "split": "val"
         }
     }
 
