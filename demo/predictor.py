@@ -192,6 +192,8 @@ class COCODemo(object):
                 of the detection properties can be found in the fields of
                 the BoxList via `prediction.fields()`
         """
+        if self.cfg.DATALOADER.SIZE_DIVISIBILITY == 0:
+            self.cfg.DATALOADER.SIZE_DIVISIBILITY = 32
         # apply pre-processing to image
         image = self.transforms(original_image)
         # convert to an ImageList, padded so that it is divisible by
