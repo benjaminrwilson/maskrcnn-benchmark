@@ -180,12 +180,10 @@ class FastRCNNLossComputation(object):
 
     def augment_loss(self, loss, fitz_categories, use_mean=False):
         unique_skin_colors = torch.unique(fitz_categories)
-        temp = loss.clone()
         for fitz_cat in unique_skin_colors:
             sc_mask = (fitz_categories == fitz_cat).type(torch.ByteTensor)
             loss[sc_mask] *= self.augmented_loss_weights[fitz_cat].expand(
                 loss[sc_mask].shape)
-        assert(torch.equal(loss, temp))
         if use_mean:
             return loss.mean()
         return loss.sum()
