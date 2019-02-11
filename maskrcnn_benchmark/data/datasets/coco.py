@@ -9,8 +9,8 @@ from maskrcnn_benchmark.structures.bounding_box import BoxList
 from maskrcnn_benchmark.structures.segmentation_mask import SegmentationMask
 
 FITZ_MAP = {
-    "Category A": 0,
-    "Category B": 1,
+    "LS": 0,
+    "DS": 1,
     "Not a person": 2,
     "A person, cannot determine skin type": 3
 }

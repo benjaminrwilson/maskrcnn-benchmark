@@ -21,7 +21,7 @@ MODEL:
     PREDICTOR: "FPNPredictor"
     NUM_CLASSES: 11
 DATASETS:
-  TRAIN: ("bdd100k_train_cocostyle",)
+  TRAIN: ("bdd100k_train_large_cocostyle",)
   TEST: ("bdd100k_val_cocostyle",)
 DATALOADER:
   SIZE_DIVISIBILITY: 32

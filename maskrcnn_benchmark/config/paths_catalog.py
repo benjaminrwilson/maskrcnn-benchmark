@@ -93,6 +93,11 @@ class DatasetCatalog(object):
             "ann_file": "bdd100k/annotations/bdd100k_train.json",
             "split": "train"
         },
+        "bdd100k_train_large_cocostyle": {
+            "img_dir": "bdd100k/images/100k/train",
+            "ann_file": "bdd100k/annotations/bdd100k_train_large.json",
+            "split": "train"
+        },
         "bdd100k_val_cocostyle": {
             "img_dir": "bdd100k/images/100k/val",
             "ann_file": "bdd100k/annotations/bdd100k_val.json",
