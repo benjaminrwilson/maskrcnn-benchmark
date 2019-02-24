@@ -21,7 +21,8 @@ class RPNLossComputation(object):
     This class computes the RPN loss.
     """
 
-    def __init__(self, proposal_matcher, fg_bg_sampler, box_coder):
+    def __init__(self, proposal_matcher, fg_bg_sampler, box_coder,
+                 augmented_loss_weights):
         """
         Arguments:
             proposal_matcher (Matcher)
@@ -29,16 +30,19 @@ class RPNLossComputation(object):
             box_coder (BoxCoder)
         """
         # self.target_preparator = target_preparator
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.proposal_matcher = proposal_matcher
         self.fg_bg_sampler = fg_bg_sampler
         self.box_coder = box_coder
+        self.augmented_loss_weights = torch.Tensor(
+            augmented_loss_weights).to(device)
 
     def match_targets_to_anchors(self, anchor, target):
         match_quality_matrix = boxlist_iou(target, anchor)
         matched_idxs = self.proposal_matcher(match_quality_matrix)
         # RPN doesn't need any fields from target
         # for creating the labels, so clear them all
-        target = target.copy_with_fields([])
+        target = target.copy_with_fields(["fitz_categories"])
         # get the targets corresponding GT for each anchor
         # NB: need to clamp the indices because we can have a single
         # GT in the image, and matched_idxs can be -2, which goes
@@ -50,6 +54,7 @@ class RPNLossComputation(object):
     def prepare_targets(self, anchors, targets):
         labels = []
         regression_targets = []
+        fitz_categories = []
         for anchors_per_image, targets_per_image in zip(anchors, targets):
             matched_targets = self.match_targets_to_anchors(
                 anchors_per_image, targets_per_image
@@ -70,10 +75,14 @@ class RPNLossComputation(object):
                 matched_targets.bbox, anchors_per_image.bbox
             )
 
+            # Get matching fitz label
+            fitz_cat = matched_targets.get_field("fitz_categories")
+
             labels.append(labels_per_image)
             regression_targets.append(regression_targets_per_image)
+            fitz_categories.append(fitz_cat)
 
-        return labels, regression_targets
+        return labels, regression_targets, fitz_categories
 
     def __call__(self, anchors, objectness, box_regression, targets):
         """
@@ -87,11 +96,15 @@ class RPNLossComputation(object):
             objectness_loss (Tensor)
             box_loss (Tensor
         """
-        anchors = [cat_boxlist(anchors_per_image) for anchors_per_image in anchors]
-        labels, regression_targets = self.prepare_targets(anchors, targets)
+        anchors = [cat_boxlist(anchors_per_image)
+                   for anchors_per_image in anchors]
+        labels, regression_targets, fitz_categories = self.prepare_targets(
+            anchors, targets)
         sampled_pos_inds, sampled_neg_inds = self.fg_bg_sampler(labels)
-        sampled_pos_inds = torch.nonzero(torch.cat(sampled_pos_inds, dim=0)).squeeze(1)
-        sampled_neg_inds = torch.nonzero(torch.cat(sampled_neg_inds, dim=0)).squeeze(1)
+        sampled_pos_inds = torch.nonzero(
+            torch.cat(sampled_pos_inds, dim=0)).squeeze(1)
+        sampled_neg_inds = torch.nonzero(
+            torch.cat(sampled_neg_inds, dim=0)).squeeze(1)
 
         sampled_inds = torch.cat([sampled_pos_inds, sampled_neg_inds], dim=0)
 
@@ -108,9 +121,12 @@ class RPNLossComputation(object):
             objectness_per_level = objectness_per_level.permute(0, 2, 3, 1).reshape(
                 N, -1
             )
-            box_regression_per_level = box_regression_per_level.view(N, -1, 4, H, W)
-            box_regression_per_level = box_regression_per_level.permute(0, 3, 4, 1, 2)
-            box_regression_per_level = box_regression_per_level.reshape(N, -1, 4)
+            box_regression_per_level = box_regression_per_level.view(
+                N, -1, 4, H, W)
+            box_regression_per_level = box_regression_per_level.permute(
+                0, 3, 4, 1, 2)
+            box_regression_per_level = box_regression_per_level.reshape(
+                N, -1, 4)
             objectness_flattened.append(objectness_per_level)
             box_regression_flattened.append(box_regression_per_level)
         # concatenate on the first dimension (representing the feature levels), to
@@ -121,19 +137,36 @@ class RPNLossComputation(object):
 
         labels = torch.cat(labels, dim=0)
         regression_targets = torch.cat(regression_targets, dim=0)
+        fitz_categories = torch.cat(fitz_categories, dim=0)
 
         box_loss = smooth_l1_loss(
             box_regression[sampled_pos_inds],
             regression_targets[sampled_pos_inds],
             beta=1.0 / 9,
-            size_average=False,
+            size_average=None,
         ) / (sampled_inds.numel())
 
+        box_loss = self.augment_loss(
+            box_loss, fitz_categories[sampled_pos_inds])
+
         objectness_loss = F.binary_cross_entropy_with_logits(
-            objectness[sampled_inds], labels[sampled_inds]
+            objectness[sampled_inds], labels[sampled_inds], reduction="none"
         )
 
+        objectness_loss = self.augment_loss(
+            objectness_loss, fitz_categories[sampled_inds], use_mean=True)
+
         return objectness_loss, box_loss
+
+    def augment_loss(self, loss, fitz_categories, use_mean=False):
+        unique_fitz_cats = torch.unique(fitz_categories)
+        for fitz_cat in unique_fitz_cats:
+            sc_mask = (fitz_categories == fitz_cat).type(torch.ByteTensor)
+            loss[sc_mask] *= self.augmented_loss_weights[fitz_cat].expand(
+                loss[sc_mask].shape)
+        if use_mean:
+            return loss.mean()
+        return loss.sum()
 
 
 def make_rpn_loss_evaluator(cfg, box_coder):
@@ -147,5 +180,6 @@ def make_rpn_loss_evaluator(cfg, box_coder):
         cfg.MODEL.RPN.BATCH_SIZE_PER_IMAGE, cfg.MODEL.RPN.POSITIVE_FRACTION
     )
 
-    loss_evaluator = RPNLossComputation(matcher, fg_bg_sampler, box_coder)
+    loss_evaluator = RPNLossComputation(
+        matcher, fg_bg_sampler, box_coder, cfg.MODEL.RPN.AUGMENTED_LOSS_WEIGHTS)
     return loss_evaluator

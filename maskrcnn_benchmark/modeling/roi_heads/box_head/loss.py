@@ -73,7 +73,7 @@ class FastRCNNLossComputation(object):
                 matched_targets.bbox, proposals_per_image.bbox
             )
 
-            # Get matching skin label
+            # Get matching fitz label
             fitz_cat = matched_targets.get_field("fitz_categories")
 
             labels.append(labels_per_image)
@@ -147,7 +147,7 @@ class FastRCNNLossComputation(object):
         labels = cat([proposal.get_field("labels")
                       for proposal in proposals], dim=0)
         regression_targets = cat(
-                [proposal.get_field("regression_targets") for proposal in proposals], dim=0
+            [proposal.get_field("regression_targets") for proposal in proposals], dim=0
         )
         fitz_categories = cat(
             [proposal.get_field("fitz_categories") for proposal in proposals], dim=0
@@ -179,8 +179,8 @@ class FastRCNNLossComputation(object):
         return classification_loss, box_loss
 
     def augment_loss(self, loss, fitz_categories, use_mean=False):
-        unique_skin_colors = torch.unique(fitz_categories)
-        for fitz_cat in unique_skin_colors:
+        unique_fitz_cats = torch.unique(fitz_categories)
+        for fitz_cat in unique_fitz_cats:
             sc_mask = (fitz_categories == fitz_cat).type(torch.ByteTensor)
             loss[sc_mask] *= self.augmented_loss_weights[fitz_cat].expand(
                 loss[sc_mask].shape)

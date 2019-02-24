@@ -90,18 +90,18 @@ class DatasetCatalog(object):
         },
         "bdd100k_train_cocostyle": {
             "img_dir": "bdd100k/images/100k/train",
-            "ann_file": "bdd100k/annotations/bdd100k_train.json",
+            "ann_file": "annotations/cocostyle/train/bdd100k_train.json",
             "split": "train"
         },
         "bdd100k_train_large_cocostyle": {
             "img_dir": "bdd100k/images/100k/train",
-            "ann_file": "bdd100k/annotations/bdd100k_train_large.json",
+            "ann_file": "annotations/cocostyle/train/bdd100k_train_large.json",
             "split": "train"
         },
-        "bdd100k_val_cocostyle": {
-            "img_dir": "bdd100k/images/100k/val",
-            "ann_file": "bdd100k/annotations/bdd100k_val.json",
-            "split": "val"
+        "bdd100k_train_equal_cocostyle": {
+            "img_dir": "bdd100k/images/100k/train",
+            "ann_file": "annotations/cocostyle/train/bdd100k_train_equal.json",
+            "split": "train"
         }
     }
 
